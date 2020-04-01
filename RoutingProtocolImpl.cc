@@ -87,7 +87,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
     unsigned int rtt = current_time - get_time;
 
     uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
-    port_graph[port].to_router_id = sourceRouterID;
+    port_graph[port].direct_neighbor_id = sourceRouterID;
     port_graph[port].last_update_time = current_time;
 
     unsigned int prev_cost = port_graph[port].cost;
@@ -109,7 +109,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         dn->cost = rtt;
     }
 
-    if (this->packet_type == DV)
+    if (this->packet_type == P_DV)
     {
         if (!isUpdate) {
             // Do nothing
@@ -123,7 +123,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             // Send DV packet
         }
     }
-    else if (this->packet_type == LS)
+    else if (this->packet_type == P_LS)
     {
 
     }
@@ -157,7 +157,7 @@ void RoutingProtocolImpl::recv_data(unsigned short port, void *packet, unsigned 
         return;
     } else {
         if (forward_table.find(dest_router_id) != forward_table.end()) {
-            uint16_t next_router = forward_table[dest_router_id].port_id;
+            uint16_t next_router = forward_table[dest_router_id].next_router_id;
             DirectNeighborEntry next_router_entry = direct_neighbor_map[next_router];
             uint16_t out_port = next_router_entry.port_num;
             unsigned int link_cost = next_router_entry.cost;
