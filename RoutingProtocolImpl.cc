@@ -38,7 +38,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
     char recv_pkt_type = recv_packet[0];
 
     if (recv_pkt_type == DATA) {
-        // recv_data()
+        recv_data(port, packet, size);
     } else if (recv_pkt_type == PING) {
         recv_ping_packet(port, packet, size);
     } else if (recv_pkt_type == PONG) {
@@ -86,7 +86,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
     unsigned int get_time = ntohs(*(uint16_t *) (recv_packet + 8));
     unsigned int rtt = current_time - get_time;
 
-    uint16_t sourceRouterID = *(uint16_t *) (recv_packet + 4);
+    uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
     port_graph[port].to_router_id = sourceRouterID;
     port_graph[port].last_update_time = current_time;
 
@@ -109,18 +109,25 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         dn->cost = rtt;
     }
 
+    if (this->packet_type == DV)
+    {
+        if (!isUpdate) {
+            // Do nothing
+            cout << "No change in cost, do nothing" << endl;
+        } else {
+            cout << "Cost change, update tables and send DV" << endl;
+            // Update DV table
 
-    if (!isUpdate) {
-        // Do nothing
-        cout << "No change in cost, do nothing" << endl;
-    } else {
-        cout << "Cost change, update tables and send DV" << endl;
-        // Update DV table
+            // Update Forward Table
 
-        // Update Forward Table
-
-        // Send DV packet
+            // Send DV packet
+        }
     }
+    else if (this->packet_type == LS)
+    {
+
+    }
+    else cout << "Unknown Packet Protocol Type" << endl;
 
 }
 
@@ -134,5 +141,31 @@ void RoutingProtocolImpl::init_pingpong() {
         sys->send(i, ping_packet, PINGPONG_PACKET_SIZE);
     }
 }
+
+void RoutingProtocolImpl::recv_data(unsigned short port, void *packet, unsigned short size) {
+    char *data_to_flood = (char *) packet;
+    uint16_t dest_router_id = ntohs(*(uint16_t *) (data_to_flood + 6));
+
+    // If originating from this router
+    if (port == SPECIAL_PORT) {
+        *(uint16_t *) (data_to_flood + 4) = router_id;
+    }
+
+    // If we reach the destination
+    if (dest_router_id == router_id) {
+        free(packet);
+        return;
+    } else {
+        if (forward_table.find(dest_router_id) != forward_table.end()) {
+            uint16_t next_router = forward_table[dest_router_id].port_id;
+            DirectNeighborEntry next_router_entry = direct_neighbor_map[next_router];
+            uint16_t out_port = next_router_entry.port_num;
+            unsigned int link_cost = next_router_entry.cost;
+            if (link_cost == INFINITY_COST) return;
+            else sys->send(out_port, data_to_flood, size);
+        } else return;
+    }
+}
+
 
 // add more of your own code
