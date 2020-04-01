@@ -92,7 +92,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
 
     unsigned int prev_cost = port_graph[port].cost;
     port_graph[port].cost = rtt;    // update cost
-    unsigned cost_diff = rtt - prev_cost;
+    bool isUpdate = rtt != prev_cost;
 
     // Update direct_neighbor_map
     bool sourceRouterInMap = direct_neighbor_map.count(sourceRouterID) != 0;
@@ -110,9 +110,11 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
     }
 
 
-    if (cost_diff == 0) {
+    if (!isUpdate) {
         // Do nothing
+        cout << "No change in cost, do nothing" << endl;
     } else {
+        cout << "Cost change, update tables and send DV" << endl;
         // Update DV table
 
         // Update Forward Table

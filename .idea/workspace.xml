@@ -11,7 +11,9 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1ad9f66a-cca2-49dd-9ef5-886f0aadd47d" name="Default Changelist" comment="" />
+    <list default="true" id="1ad9f66a-cca2-49dd-9ef5-886f0aadd47d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/RoutingProtocolImpl.cc" beforeDir="false" afterPath="$PROJECT_DIR$/RoutingProtocolImpl.cc" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -21,7 +23,11 @@
     <option name="formatViaClangd" value="false" />
   </component>
   <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
   <component name="ProjectId" id="1ZpKR13KENgdguOmUUbxSq54Eds" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showExcludedFiles" value="true" />
@@ -58,7 +64,7 @@
       <workItem from="1585530587721" duration="2270000" />
       <workItem from="1585614724305" duration="13674000" />
       <workItem from="1585669301878" duration="41000" />
-      <workItem from="1585703131462" duration="11685000" />
+      <workItem from="1585703131462" duration="12152000" />
     </task>
     <servers />
   </component>
