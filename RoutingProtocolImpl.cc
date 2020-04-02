@@ -171,19 +171,6 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         send_dv_packet();
         return;
     }
-
-
-}
-
-void RoutingProtocolImpl::init_pingpong() {
-    for (int i = 0; i < this->num_ports; i++) {
-        char *ping_packet = (char *) malloc(PINGPONG_PACKET_SIZE * sizeof(char));
-        *(char *) ping_packet = PING;
-        *(uint16_t *) (ping_packet + 2) = htons(12);
-        *(uint16_t *) (ping_packet + 4) = htons(this->router_id);
-        *(unsigned int *) (ping_packet + 8) = htons(sys->time());
-        sys->send(i, ping_packet, PINGPONG_PACKET_SIZE);
-    }
 }
 
 void RoutingProtocolImpl::recv_data(unsigned short port, void *packet, unsigned short size) {
@@ -213,6 +200,43 @@ void RoutingProtocolImpl::recv_data(unsigned short port, void *packet, unsigned 
 
 
 void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsigned short size) {
+    char * dv_packet = (char *) packet;
+    uint16_t packet_size = ntohs(*(uint16_t *) (dv_packet + 2));
+    uint16_t fromRouterID = ntohs(*(uint16_t *) (dv_packet + 4));
+    uint16_t toRouterID = ntohs(*(uint16_t *) (dv_packet + 6));
+
+    // Parse DV_table to get a vector of pairs
+    uint16_t dv_map_size = (packet_size - PAYLOAD_POS) / 4;
+    vector<pair<uint16_t, uint16_t>> dv_entry_vec;
+    for (int i = 0; i < dv_map_size; i++) {
+        uint16_t node_id = *(uint16_t *) (dv_packet + PAYLOAD_POS + 4 * i);
+        uint16_t cost = *(uint16_t *) (dv_packet + PAYLOAD_POS + 4 * i + 2);
+        pair<uint16_t, uint16_t> dv_entry;
+        dv_entry.first = node_id;
+        dv_entry.second = cost;
+        dv_entry_vec.push_back(dv_entry);
+    }
+
+    // Create neighbor entry if not exists
+    bool findNeighbor = direct_neighbor_map.count(fromRouterID) != 0;
+    if (!findNeighbor) {
+        DirectNeighborEntry entry;
+        unsigned int cost_to_fill;
+        for (auto dv_pair: dv_entry_vec) {
+            uint16_t dest_id = dv_pair.first;
+            uint16_t cost = dv_pair.second;
+            if (dest_id == router_id) {
+                cost_to_fill = cost;
+            }
+        }
+        entry.port_num = port;
+        entry.router_id = router_id;
+        entry.cost = cost_to_fill;
+
+        direct_neighbor_map[fromRouterID] = entry;
+    }
+
+
 
 }
 
@@ -227,6 +251,17 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
 // HELPER FUNCTION AREA
 //************************************************************************************************//
 //************************************************************************************************//
+
+void RoutingProtocolImpl::init_pingpong() {
+    for (int i = 0; i < this->num_ports; i++) {
+        char *ping_packet = (char *) malloc(PINGPONG_PACKET_SIZE * sizeof(char));
+        *(char *) ping_packet = PING;
+        *(uint16_t *) (ping_packet + 2) = htons(12);
+        *(uint16_t *) (ping_packet + 4) = htons(this->router_id);
+        *(unsigned int *) (ping_packet + 8) = htons(sys->time());
+        sys->send(i, ping_packet, PINGPONG_PACKET_SIZE);
+    }
+}
 
 bool RoutingProtocolImpl::createEntryIfNotExists(uint16_t sourceID, unsigned int cost) {
     // Search through forwarding_table, if not exists, update DV_table and fwd_table
@@ -279,8 +314,8 @@ void RoutingProtocolImpl::send_dv_packet() {
 
                 *(uint16_t *) (dv_packet + pos) = htons(dest_id);
                 // Poison reverse
-//                auto direct_neighbor_entry = direct_neighbor_map[dest_id];
-//                cost = (direct_neighbor_entry.port_num == i)? INFINITY_COST: cost;
+                auto direct_neighbor_entry = direct_neighbor_map[dest_id];
+                cost = (direct_neighbor_entry.port_num == i)? INFINITY_COST: cost;
                 *(uint16_t *) (dv_packet + pos + 2) = htons((uint16_t) cost);
 
                 pos += 4;
