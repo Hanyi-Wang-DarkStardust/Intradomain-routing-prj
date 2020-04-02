@@ -7,7 +7,9 @@
 
 #include "global.h"
 
+#define NO_NEIGHBOR_FLAG 0xffff
 #define PINGPONG_PACKET_SIZE 12
+#define PAYLOAD_POS 8
 
 struct PortEntry {
     uint16_t direct_neighbor_id;
