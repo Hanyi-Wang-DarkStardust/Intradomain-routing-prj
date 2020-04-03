@@ -154,7 +154,6 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         } else {
             if (rtt < DV_table[sourceRouterID].cost) {  // If direct_neighbor is better
                 DV_table[sourceRouterID].cost = rtt;
-//                DV_table[sourceRouterID].next_hop
                 send_dv_packet();
             }
         }
