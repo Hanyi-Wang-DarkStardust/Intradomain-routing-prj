@@ -102,10 +102,28 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         dn->cost = rtt;
 
         if (isConnected) {
-            unsigned int cost_update = (rtt - prev_cost);
+//            unsigned int cost_update = (rtt - prev_cost);
+            int cost_update = rtt - prev_cost;
             if (cost_update == 0) { // No change
                 // Do nothing
                 cout << "No change in cost, do nothing" << endl;
+            } else if (cost_update < 0) {
+                for (auto it = DV_table.begin(); it != DV_table.end(); it++) {
+                    uint16_t dest_id = it->first;
+                    DVEntry &dv_entry = it->second;
+                    if (dv_entry.next_hop == sourceRouterID) {
+                        // 本来就是最短的，变短了说明routing不变，更新DV table的cost即可
+                        dv_entry.cost = rtt;
+                    } else if (dest_id == sourceRouterID && rtt < dv_entry.cost) {
+                        // 这里dest_id即为一个direct neighbor（sourceRouterID），但是通过DVtable是绕道走的（而非直接到达），如果rtt<dvtable的最优路径，则选用直接到达的路径
+                        dv_entry.cost = rtt;
+                        dv_entry.next_hop = sourceRouterID;
+
+                        ForwardTableEntry newFWDEntry(sourceRouterID);
+                        forward_table[dest_id] = newFWDEntry;
+                    }
+                }
+                send_dv_packet();
             } else {
                 for (auto it = DV_table.begin(); it != DV_table.end(); it++) {
                     uint16_t dest_id = it->first;
@@ -126,6 +144,9 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                     } else if (dest_id == sourceRouterID && rtt < dv_entry.cost) {
                         dv_entry.cost = rtt;
                         dv_entry.next_hop = sourceRouterID;
+
+                        ForwardTableEntry newFWDEntry(sourceRouterID);
+                        forward_table[dest_id] = newFWDEntry;
                     }
                 }
                 send_dv_packet();
