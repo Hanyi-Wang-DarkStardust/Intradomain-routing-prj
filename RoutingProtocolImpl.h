@@ -4,6 +4,7 @@
 #include "RoutingProtocol.h"
 #include "utils.h"
 #include "Node.h"
+#include "alarmHandler.h"
 
 class RoutingProtocolImpl : public RoutingProtocol {
 public:
@@ -43,6 +44,9 @@ public:
 
 private:
     Node *sys; // To store Node object; used to access GSR9999 interfaces
+
+    AlarmHandler * alarmHandler;
+
 
     unsigned short num_ports;
     unsigned short router_id;

@@ -3,10 +3,12 @@
 RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
     sys = n;
     // add your own code
+    alarmHandler = new AlarmHandler();
 }
 
 RoutingProtocolImpl::~RoutingProtocolImpl() {
     // add your own code (if needed)
+    delete alarmHandler;
 }
 
 void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type) {
@@ -26,12 +28,43 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
     }
     init_pingpong();
 
-    // TODO deal with alarm
+    alarmHandler->init_alarm(sys,this);
+//    sys->set_alarm(this, 10000, (void*) pingpong_alarm_data);
+//    sys->set_alarm(this, 30000, (void*) dv_update_alarm_data);
+//    sys->set_alarm(this, 1000, (void*) expire_alarm_data);
 }
 
 void RoutingProtocolImpl::handle_alarm(void *data) {
     // add your own code
-    char alarm_type = ((char *) data)[0];
+    eAlarmType alarm_type = *(eAlarmType *) data;
+
+    if (alarm_type == PINGPONG_ALARM) {
+        init_pingpong();
+        sys->set_alarm(this, 10 * SECOND, data);
+    } else if (alarm_type == EXPIRE_ALARM) {
+        if (packet_type == P_DV) {
+            //TODO: handle DV expire
+
+        } else if (packet_type == P_LS) {
+            // TODO: handle LS expire
+        }
+        sys->set_alarm(this, 1 * SECOND, data);
+    } else if (alarm_type == DV_UPDATE_ALARM) {
+        if (packet_type == P_DV) {
+            //TODO: handle DV_update_alarm
+
+        }
+        sys->set_alarm(this, 30 * SECOND, data);
+    } else if (alarm_type == LS_UPDATE_ALARM) {
+        if (packet_type == P_LS) {
+            //TODO: handle ls_update_alarm
+
+        }
+        sys->set_alarm(this, 30 * SECOND, data);
+    } else {
+        cout << "Alarm type not acceptable. " << endl;
+        exit(1);
+    }
 }
 
 void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size) {
@@ -46,22 +79,22 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
     } else if (recv_pkt_type == PONG) {
         recv_pong_packet(port, packet, size);
     } else if (recv_pkt_type == DV) {
-        recv_dv_packet(port, packet, size);
+//        recv_dv_packet(port, packet, size);
     } else if (recv_pkt_type == LS) {
-        recv_ls_packet(port, packet, size);
+//        recv_ls_packet(port, packet, size);
     }
 }
 
 void RoutingProtocolImpl::recv_ping_packet(unsigned short port, void *packet, unsigned short size) {
     char *pong_to_send = (char *) packet;
     uint16_t from_port_id = ntohs(*(uint16_t *) (pong_to_send + 4));
-    unsigned int recv_time = ntohs(*(unsigned int *) (pong_to_send + 8));
+    unsigned int recv_time = ntohl(*(unsigned int *) (pong_to_send + 8));
     // Send back pong packet
     *(char *) pong_to_send = PONG;
     *(uint16_t *) (pong_to_send + 2) = htons(12);
     *(uint16_t *) (pong_to_send + 4) = htons(this->router_id);
     *(uint16_t *) (pong_to_send + 6) = htons(from_port_id);
-    *(unsigned int *) (pong_to_send + 8) = htons(recv_time);
+    *(unsigned int *) (pong_to_send + 8) = htonl(recv_time);
     sys->send(port, pong_to_send, PINGPONG_PACKET_SIZE);
 }
 
@@ -70,8 +103,20 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
 
     // Get rtt: recv_timestamp is the timestamp where PING sent, curr - get_time measure the RTT.
     unsigned int current_time = sys->time();
-    unsigned int get_time = ntohs(*(uint16_t *) (recv_packet + 8));
+    unsigned int get_time = ntohl(*(unsigned int *) (recv_packet + 8));
     unsigned int rtt = current_time - get_time;
+
+    // DEBUG FLAG
+    cout << endl;
+    cout << "RTT IS: "<< rtt << " Current time is " << current_time << " recv_time "<< get_time << endl;
+    for (auto entryP: DV_table) {
+        auto dest_id = entryP.first;
+        DVEntry entry = entryP.second;
+        cout << "For router "<<router_id << " DEST NODE ID: "<< dest_id << " COST: " << entry.cost << " NEXTHOP: " << entry.next_hop << " ";
+    }
+    cout << endl;
+    // DEBUG FLAG END
+
 
     uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
     bool isConnected = port_graph[port].direct_neighbor_id != NO_NEIGHBOR_FLAG;
@@ -106,7 +151,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             int cost_update = rtt - prev_cost;
             if (cost_update == 0) { // No change
                 // Do nothing
-                cout << "No change in cost, just update the time directly related to sourceID in DV_table" << endl;
+//                cout << "No change in cost, just update the time directly related to sourceID in DV_table" << endl;
                 for (auto &it_pair : DV_table) {
                     uint16_t dest_id = it_pair.first;
                     DVEntry &dv_entry = it_pair.second;
@@ -125,7 +170,9 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                         dv_entry.cost = rtt;
                         dv_entry.next_hop = sourceRouterID;
 
-                        ForwardTableEntry newFWDEntry(sourceRouterID);
+//                        ForwardTableEntry newFWDEntry(sourceRouterID);
+                        ForwardTableEntry newFWDEntry;
+                        newFWDEntry.next_router_id = sourceRouterID;
                         forward_table[dest_id] = newFWDEntry;
                     }
                     dv_entry.last_update_time = sys->time();
@@ -144,7 +191,9 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                             dv_entry.next_hop = dest_id;
                             dv_entry.cost = direct_neighbor_cost;
 
-                            ForwardTableEntry newFWDEntry(dest_id);
+//                            ForwardTableEntry newFWDEntry(dest_id);
+                            ForwardTableEntry newFWDEntry;
+                            newFWDEntry.next_router_id = dest_id;
                             forward_table[dest_id] = newFWDEntry;
                         } else {    // Else: update cost but still use the current route
                             dv_entry.cost = rtt2;
@@ -153,7 +202,9 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                         dv_entry.cost = rtt;
                         dv_entry.next_hop = sourceRouterID;
 
-                        ForwardTableEntry newFWDEntry(sourceRouterID);
+//                        ForwardTableEntry newFWDEntry(sourceRouterID);
+                        ForwardTableEntry newFWDEntry;
+                        newFWDEntry.next_router_id = sourceRouterID;
                         forward_table[dest_id] = newFWDEntry;
                     }
                     dv_entry.last_update_time = sys->time();
@@ -253,7 +304,9 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
                     dv_entry.last_update_time = sys->time();
                     DV_table[node_id] = dv_entry;
 
-                    ForwardTableEntry fwd_entry(fromRouterID);
+//                    ForwardTableEntry fwd_entry(fromRouterID);
+                    ForwardTableEntry fwd_entry;
+                    fwd_entry.next_router_id = fromRouterID;
                     forward_table[node_id] = fwd_entry;
                 }
             } else {    // node_id is in the DV_table
@@ -266,7 +319,9 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
                         DV_table[node_id].cost = new_route_cost;
                         DV_table[node_id].next_hop = fromRouterID;
 
-                        ForwardTableEntry fwd_entry(fromRouterID);
+//                        ForwardTableEntry fwd_entry(fromRouterID);
+                        ForwardTableEntry fwd_entry;
+                        fwd_entry.next_router_id = fromRouterID;
                         forward_table[node_id] = fwd_entry;
                     }
                     DV_table[node_id].last_update_time = sys->time();
@@ -276,6 +331,7 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
 
             }
         }
+        send_dv_packet();
     }
 }
 
@@ -297,7 +353,8 @@ void RoutingProtocolImpl::init_pingpong() {
         *(char *) ping_packet = PING;
         *(uint16_t *) (ping_packet + 2) = htons(12);
         *(uint16_t *) (ping_packet + 4) = htons(this->router_id);
-        *(unsigned int *) (ping_packet + 8) = htons(sys->time());
+        *(unsigned int *) (ping_packet + 8) = htonl(sys->time());
+        cout << "PING: send_Time: " << sys->time() <<endl;
         sys->send(i, ping_packet, PINGPONG_PACKET_SIZE);
     }
 }
@@ -311,7 +368,9 @@ bool RoutingProtocolImpl::createEntryIfNotExists(uint16_t sourceID, unsigned int
     if (entryExists) return false;
     else {
         // Forwarding table
-        ForwardTableEntry fwdEntry(sourceID);
+//        ForwardTableEntry fwdEntry(sourceID);
+        ForwardTableEntry fwdEntry;
+        fwdEntry.next_router_id = sourceID;
         forward_table[sourceID] = fwdEntry;
 
         // DV table
