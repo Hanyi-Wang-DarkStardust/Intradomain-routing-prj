@@ -4,7 +4,7 @@
 #include "RoutingProtocol.h"
 #include "utils.h"
 #include "Node.h"
-#include "alarmHandler.h"
+#include "AlarmHandler.h"
 
 class RoutingProtocolImpl : public RoutingProtocol {
 public:
@@ -46,7 +46,10 @@ private:
     Node *sys; // To store Node object; used to access GSR9999 interfaces
 
     AlarmHandler * alarmHandler;
-
+//    eAlarmType * pingpong_alarm_data;
+//    eAlarmType * dv_update_alarm_data;
+//    eAlarmType * ls_update_alarm_data;
+//    eAlarmType * expire_alarm_data;
 
     unsigned short num_ports;
     unsigned short router_id;
@@ -63,7 +66,10 @@ private:
 
     void recv_ping_packet(unsigned short port, void *packet, unsigned short size);
 
-    void recv_pong_packet(unsigned short port, void *packet, unsigned short size);
+
+    void update_DV(int16_t dest_id,  unsigned int cost, uint16_t next_hop);
+    void update_forward(uint16_t dest_id,uint16_t next_hop);
+    void update_neighbor(uint16_t neighbor_id, unsigned int cost, uint16_t port_num);
 
     void recv_data(unsigned short port, void *packet, unsigned short size);
 
@@ -73,10 +79,24 @@ private:
 
     void send_dv_packet();
 
+    void handle_port_expire();
 
-    // Helper functions:
+    void handle_dv_expire();
+
     bool createEntryIfNotExists(uint16_t sourceID, unsigned int cost);
 
+
+    void printDVTable();
+
+    void printNeighborTable();
+
+    void recv_pong_packet(unsigned short port, void *packet, unsigned short size);
+
+    void insert_neighbor(uint16_t neighbor_id, unsigned int cost, uint16_t port_num);
+
+    void insert_DV(int16_t dest_id, unsigned int cost, uint16_t next_hop);
+
+    void insert_forward(uint16_t dest_id, uint16_t next_hop);
 };
 
 #endif
