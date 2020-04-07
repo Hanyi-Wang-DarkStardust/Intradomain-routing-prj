@@ -23,6 +23,7 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
         port.cost = INFINITY_COST;
         port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
         port.last_update_time = 0;
+        port.isConnected = false;
         port_graph.push_back(port);
     }
     init_pingpong();
@@ -90,7 +91,9 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
     unsigned int get_time = ntohl(*(unsigned int *) (recv_packet + 8));
     uint16_t rtt = current_time - get_time;
     uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
-    bool isConnected = port_graph[port].direct_neighbor_id != NO_NEIGHBOR_FLAG;
+//    bool isConnected = port_graph[port].direct_neighbor_id != NO_NEIGHBOR_FLAG;
+    bool isConnected = port_graph[port].isConnected;
+    port_graph[port].isConnected = true;
     port_graph[port].direct_neighbor_id = sourceRouterID;
     port_graph[port].last_update_time = current_time;
     port_graph[port].cost = rtt;    // update cost
@@ -137,6 +140,15 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                 } else if (it->first == sourceRouterID && new_cost < DV_table[sourceRouterID].cost) {
                     update_DV(sourceRouterID, new_cost, sourceRouterID);
                     update_forward(sourceRouterID, sourceRouterID);
+                }
+            }
+        } else {
+            for (auto &pair: DV_table) {
+                uint16_t dest_id = pair.first;
+                auto &dv_entry = pair.second;
+                if (dest_id == sourceRouterID || dv_entry.next_hop == sourceRouterID) {
+                    // 目的地为来的router，或要去某个router必须经过来的router, update time
+                    dv_entry.last_update_time = sys->time();
                 }
             }
         }
@@ -307,7 +319,8 @@ void RoutingProtocolImpl::send_dv_packet() {
 
     for (uint16_t i = 0; i < num_ports; i++) {
         PortEntry port = port_graph[i];
-        if (port.cost != INFINITY_COST && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
+//        if (port.cost != INFINITY_COST && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
+        if (port.isConnected) {
             uint16_t dest_router_id = port.direct_neighbor_id;
             char *dv_packet = (char *) malloc(send_size * sizeof(char));
             *(ePacketType *) dv_packet = DV;
@@ -338,35 +351,83 @@ void RoutingProtocolImpl::handle_port_expire() {
     // Iterate through ports, disconnect some ports, remove entries in DVtable and DirectNeighbor Table
     // remove all entries in DVtable whose next_hop is ports.to
     // remove all entries in directNeighborTable connected to that expire port
-    for (PortEntry &port: port_graph) {
-        bool is_expire = (sys->time() - port.last_update_time) > 15 * SECOND;
-        bool is_connected = port.direct_neighbor_id != NO_NEIGHBOR_FLAG;
-        if (!is_connected || !is_expire) return;
-        port.last_update_time = sys->time();
-        port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
-        port.cost = INFINITY_COST;
+    cout << "check whether the port is expired?" << endl;
+
+    vector<uint16_t> remove_list;
+
+    for (int i = 0; i < num_ports; i++) {
+        PortEntry &port = port_graph[i];
+        unsigned int time_lag = sys->time() - port.last_update_time;
+        if (time_lag > 15 * SECOND) {
+            cout << "route_id: " << router_id << "port: " << i << " expires ";
+            port.isConnected = false;
+            port.cost = INFINITY_COST;
+            uint16_t connected_router = port.direct_neighbor_id;
+
+            // remove direct neighbor entries connected with this port
+            if (direct_neighbor_map.count(connected_router) > 0) {
+                direct_neighbor_map.erase(connected_router);
+            }
+
+            // remove DV_table entries whose nextHop is connected_router and destination not in neighbor
+            for (auto it = DV_table.begin(); it != DV_table.end(); it++) {
+                uint16_t dest_id = it->first;
+                auto &dv_entry = it->second;
+                if (connected_router == dv_entry.next_hop) {    //find routers need to be reached by going to connected_router as next hop
+                    bool notInDirectNeighbor = direct_neighbor_map.count(dest_id) == 0;
+                    if (notInDirectNeighbor) { // delete if destination is not in direct_neighbor_map
+                        remove_list.push_back(dest_id);
+                    } else {
+                        update_DV(dest_id, direct_neighbor_map[dest_id].cost, dest_id);
+//                        dv_entry.cost = direct_neighbor_map[dest_id].cost;
+//                        dv_entry.next_hop = dest_id;
+//                        dv_entry.last_update_time = sys->time();
+                    }
+                }
+            }
+            port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
+        }
     }
 
+    for (uint16_t dest_to_remove: remove_list) {
+        DV_table.erase(dest_to_remove);
+        forward_table.erase(dest_to_remove);
+    }
 }
 
 void RoutingProtocolImpl::handle_dv_expire() {
-    cout << "expire func begin" << endl;
+    // 如果一个DV entry要被移除：
+    //      1。 看看DV entry的目的地在不在direct neighbor里，在的话就根据direct neighbor来更新dv entry
+    //      2。 如果不再DirectNeighbor，删除。这个时候，其他接收到updated DVtable的router，看到发来的router里面少了一个entry，会不会有什么问题？
+
+    handle_port_expire();
+
+    vector<uint16_t> remove_list;
+
     for (auto it = DV_table.begin(); it != DV_table.end(); ++it) {
         if (sys->time() - it->second.last_update_time > 45 * SECOND) {
             if (direct_neighbor_map.count(it->first) != 0) {
                 update_DV(it->first, direct_neighbor_map[it->first].cost, it->first);
                 update_forward(it->first, it->first);
             } else {
-                forward_table.erase(forward_table.find(it->first));
-                DV_table.erase(it);
+//                forward_table.erase(forward_table.find(it->first));
+//                DV_table.erase(it);
+                remove_list.push_back(it->first);
             }
         }
     }
-
-    // 如果一个DV entry要被移除：
-    //      1。 看看DV entry的目的地在不在direct neighbor里，在的话就根据direct neighbor来更新dv entry
-    //      2。 如果不再DirectNeighbor，删除。这个时候，其他接收到updated DVtable的router，看到发来的router里面少了一个entry，会不会有什么问题？
+//    cout << endl;
+//    cout << "Remove_list size: "<< remove_list.size()<<endl;
+//    cout << "Before, DVMAP SIZE" << DV_table.size() <<endl;
+    for (uint16_t dest_to_remove: remove_list) {
+        DV_table.erase(dest_to_remove);
+        forward_table.erase(dest_to_remove);
+    }
+//    cout << "AFter, DVMAP SIZE" << DV_table.size() <<endl;
+//    cout << endl;
+    send_dv_packet();
 }
+
 
 void RoutingProtocolImpl::printDVTable() {
     cout << endl;
