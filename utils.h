@@ -46,4 +46,10 @@ struct ForwardTableEntry {
     uint16_t next_router_id;
 };
 
+struct LSEntry {
+    unsigned int cost;
+    unsigned int last_update_time;
+};
+
+
 #endif //PROJECT3_UTILS_H

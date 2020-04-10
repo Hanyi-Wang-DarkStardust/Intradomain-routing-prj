@@ -63,7 +63,8 @@ private:
 
     // LS Part
     uint32_t seq_num;
-    unordered_map<uint16_t, unordered_map<uint16_t, uint16_t>> LS_table;
+//    unordered_map<uint16_t, unordered_map<uint16_t, uint16_t>> LS_table;
+    unordered_map<uint16_t, unordered_map<uint16_t, LSEntry>> LS_table;
     set<pair<uint16_t, uint32_t>> haveSeenSet;
 
 private:
@@ -101,7 +102,7 @@ private:
     void insert_forward(uint16_t dest_id, uint16_t next_hop);
 
     // LS part:
-    void flood_ls_packet(uint16_t in_port_num);
+    void flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet);
 
 //    void handle_PONG_with_LS();
 
