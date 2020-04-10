@@ -6,6 +6,7 @@
 #include "Node.h"
 #include "AlarmHandler.h"
 
+
 class RoutingProtocolImpl : public RoutingProtocol {
 public:
     RoutingProtocolImpl(Node *n);
@@ -63,6 +64,7 @@ private:
     // LS Part
     uint32_t seq_num;
     unordered_map<uint16_t, unordered_map<uint16_t, uint16_t>> LS_table;
+    set<pair<uint16_t, uint32_t>> haveSeenSet;
 
 private:
     // Additional Helper Functions Implemented by Our team

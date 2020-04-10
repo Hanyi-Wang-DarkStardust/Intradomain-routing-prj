@@ -288,6 +288,25 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
 
 
 void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsigned short size) {
+    char * recv_packet = (char *) packet;
+    uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
+    uint32_t seq_num = ntohl(*(uint32_t *) (recv_packet + 8));
+    pair<uint16_t, uint32_t> curr_pair = make_pair(sourceRouterID, seq_num);
+    if (haveSeenSet.count(curr_pair) != 0) {    // have recv packet before
+        return;
+    }
+    // 1. put seen pair into the SET
+    haveSeenSet.insert(curr_pair);
+    vector<pair<uint16_t, uint16_t>> recv_ls_list;
+    unsigned short num_entry = (size - LS_PAYLOAD_POS) / 4;
+    for (int i = 0; i < num_entry; i++) {
+        uint16_t node_id = *(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i);
+        uint16_t cost = *(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i + 2);
+        auto curr_node_cost_pair = make_pair(node_id, cost);
+        recv_ls_list.push_back(curr_node_cost_pair);
+    }
+    // 2. Update LS table
+
 
 }
 
@@ -356,7 +375,7 @@ void RoutingProtocolImpl::handle_port_expire() {
     // Iterate through ports, disconnect some ports, remove entries in DVtable and DirectNeighbor Table
     // remove all entries in DVtable whose next_hop is ports.to
     // remove all entries in directNeighborTable connected to that expire port
-    cout << "check whether the port is expired?" << endl;
+//    cout << "check whether the port is expired?" << endl;
 
     vector<uint16_t> remove_list;
 
@@ -399,35 +418,22 @@ void RoutingProtocolImpl::handle_port_expire() {
 }
 
 void RoutingProtocolImpl::handle_dv_expire() {
-    // 如果一个DV entry要被移除：
-    //      1。 看看DV entry的目的地在不在direct neighbor里，在的话就根据direct neighbor来更新dv entry
-    //      2。 如果不再DirectNeighbor，删除。这个时候，其他接收到updated DVtable的router，看到发来的router里面少了一个entry，会不会有什么问题？
-
     handle_port_expire();
-
     vector<uint16_t> remove_list;
-
     for (auto it = DV_table.begin(); it != DV_table.end(); ++it) {
         if (sys->time() - it->second.last_update_time > 45 * SECOND) {
             if (direct_neighbor_map.count(it->first) != 0) {
                 update_DV(it->first, direct_neighbor_map[it->first].cost, it->first);
                 update_forward(it->first, it->first);
             } else {
-//                forward_table.erase(forward_table.find(it->first));
-//                DV_table.erase(it);
                 remove_list.push_back(it->first);
             }
         }
     }
-//    cout << endl;
-//    cout << "Remove_list size: "<< remove_list.size()<<endl;
-//    cout << "Before, DVMAP SIZE" << DV_table.size() <<endl;
     for (uint16_t dest_to_remove: remove_list) {
         DV_table.erase(dest_to_remove);
         forward_table.erase(dest_to_remove);
     }
-//    cout << "AFter, DVMAP SIZE" << DV_table.size() <<endl;
-//    cout << endl;
     send_dv_packet();
 }
 

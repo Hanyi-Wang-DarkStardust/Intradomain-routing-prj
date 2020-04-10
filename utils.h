@@ -6,6 +6,7 @@
 #define PROJECT3_UTILS_H
 
 #include "global.h"
+#include <set>
 
 #define NO_NEIGHBOR_FLAG 0xffff
 #define PINGPONG_PACKET_SIZE 12
