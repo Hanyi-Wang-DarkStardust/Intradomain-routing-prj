@@ -31,7 +31,7 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
         port_graph.push_back(port);
     }
     init_pingpong();
-    alarmHandler->init_alarm(sys, this);
+    alarmHandler->init_alarm(sys, this, protocol_type);
 }
 
 void RoutingProtocolImpl::handle_alarm(void *data) {
@@ -42,18 +42,18 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
         init_pingpong();
         sys->set_alarm(this, 10 * SECOND, data);
     } else if (alarm_type == EXPIRE_ALARM) {
-        if (packet_type == P_DV) {
-            handle_dv_expire();
-        } else if (packet_type == P_LS) {
-            handle_ls_expire();
-        }
-        sys->set_alarm(this, 1 * SECOND, data);
+//        if (packet_type == P_DV) {
+//            handle_dv_expire();
+//        } else if (packet_type == P_LS) {
+//            handle_ls_expire();
+//        }
+//        sys->set_alarm(this, 1 * SECOND, data);
     } else if (alarm_type == DV_UPDATE_ALARM) {
         send_dv_packet();
         sys->set_alarm(this, 30 * SECOND, data);
     } else if (alarm_type == LS_UPDATE_ALARM) {
-        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
-        sys->set_alarm(this, 30 * SECOND, data);
+//        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, -1);
+//        sys->set_alarm(this, 30 * SECOND, data);
     } else {
         cout << "Alarm type not acceptable. " << endl;
         exit(1);
@@ -154,20 +154,21 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             }
         }
         send_dv_packet();
-//        printDVTable();
     } else if (packet_type == P_LS) {
+
+        cout << endl;
+        cout << "BEFORE: RECV_PONG: FROM source: " << sourceRouterID << endl;
+        printLSTable();
+
         if (!sourceRouterInMap) {   // Not in DirectNeighborMap
+            cout <<"SOURCE " << sourceRouterID << " NOT IN MAP" <<endl;
             insert_neighbor(sourceRouterID, rtt, port);
-            if (LS_table.count(sourceRouterID) == 0) {
-                // also not exists in  LS ..insert into LS
-                insert_LS(sourceRouterID, rtt);
+            if (check_link_in_LSTable(router_id, sourceRouterID) == false) {
+                cout << "haha" <<endl;
+                insert_LS(router_id, sourceRouterID, rtt);
                 insert_forward(sourceRouterID, sourceRouterID);
                 // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
-            } else {
-                update_LS(sourceRouterID, rtt);
-                // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
+                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
         } else {    // In DirectNeighbor
             DirectNeighborEntry *dn = &direct_neighbor_map[sourceRouterID];
@@ -176,11 +177,14 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             int cur_cost = dn->cost;
             int diff = cur_cost - prev_cost;
             if (diff != 0) {
-                update_LS(sourceRouterID, cur_cost);
+                update_LS(router_id, sourceRouterID, cur_cost);
                 // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
+                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
         }
+        cout << endl;
+        cout << "AFTER: RECV_PONG: FROM source: " << sourceRouterID << endl;
+        printLSTable();
     }
 }
 
@@ -220,19 +224,15 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
     // Parse DV_table to get a vector of pairs
     uint16_t dv_map_size = (packet_size - PAYLOAD_POS) / 4;
     vector<pair<uint16_t, uint16_t>> dv_entry_vec;
-//    cout<<"_*******************************"<<endl;
-//    cout<< "dv package reveived: " << endl;
-//    cout<<"route: " <<router_id <<" from router_id: " <<fromRouterID<<endl;
     for (int i = 0; i < dv_map_size; i++) {
         uint16_t node_id = ntohs(*(uint16_t *) (dv_packet + PAYLOAD_POS + 4 * i));
         uint16_t cost = ntohs(*(uint16_t *) (dv_packet + PAYLOAD_POS + 4 * i + 2));
         pair<uint16_t, uint16_t> dv_entry;
-//        cout<< " dest_id: " << node_id <<" cost: "<< cost <<endl;
         dv_entry.first = node_id;
         dv_entry.second = cost;
         dv_entry_vec.push_back(dv_entry);
     }
-//    cout << "_*******************************" << endl;
+
     // recalculate the dis between curNode and sourceNode, if it does not exists in neighbor
     bool isInDirectNeighbor = direct_neighbor_map.count(fromRouterID) > 0;
     if (!isInDirectNeighbor) {
@@ -294,11 +294,17 @@ void RoutingProtocolImpl::recv_dv_packet(unsigned short port, void *packet, unsi
 
 
 void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsigned short size) {
+
     bool hasChange = false;
     char * recv_packet = (char *) packet;
     uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
-    uint32_t seq_num = ntohl(*(uint32_t *) (recv_packet + 8));
-    pair<uint16_t, uint32_t> curr_pair = make_pair(sourceRouterID, seq_num);
+
+    uint32_t seq_num_send = ntohl(*(uint32_t *) (recv_packet + 8));
+    if (router_id == sourceRouterID && seq_num_send <= this->seq_num) {
+        free(packet);
+        return;
+    }
+    pair<uint16_t, uint32_t> curr_pair = make_pair(sourceRouterID, seq_num_send);
     if (haveSeenSet.count(curr_pair) > 0) {    // have recv packet before
         free(packet);
         return;
@@ -308,8 +314,8 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     vector<pair<uint16_t, uint16_t>> recv_ls_list;
     unsigned short num_entry = (size - LS_PAYLOAD_POS) / 4;
     for (int i = 0; i < num_entry; i++) {
-        uint16_t node_id = *(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i);
-        uint16_t cost = *(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i + 2);
+        uint16_t node_id = ntohs(*(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i));
+        uint16_t cost = ntohs(*(uint16_t *) (recv_packet + LS_PAYLOAD_POS + 4 * i + 2));
         auto curr_node_cost_pair = make_pair(node_id, cost);
         recv_ls_list.push_back(curr_node_cost_pair);
     }
@@ -318,24 +324,31 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     for (auto &pair: recv_ls_list) {
         uint16_t dest_id = pair.first;
         uint16_t cost = pair.second;
-        if (LS_table.count(dest_id) == 0) { // received entry not in my LS table, add it!
-            insert_LS(dest_id, cost);
+        if (router_id == dest_id) continue;
+        if (check_link_in_LSTable(sourceRouterID, dest_id) == false) { // received entry not in my LS table, add it!
+            hasChange = true;
+            insert_LS(sourceRouterID,dest_id,cost);
+
         } else {    // update it!
             uint16_t old_cost = LS_table[dest_id][router_id].cost;
             if (cost != old_cost) {
                 hasChange = true;
-                update_LS(dest_id, cost);
-            } else update_LS(dest_id, cost);    // TODO: Do we need to update time when there's no change? If no, delete this line
+                update_LS(sourceRouterID, dest_id, cost);
+            }
+//            else update_LS(sourceRouterID, dest_id, cost);    // TODO: Do we need to update time when there's no change? If no, delete this line
         }
     }
 
     // 3. flood my LS packet, and re-transmit(flood) others' packets
-    flood_ls_packet(false, port, recv_packet);  // flooding re-transmit
-    if (hasChange) {
-        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
-    }
+    flood_ls_packet(false, port, recv_packet, size);  // flooding re-transmit
+//    if (hasChange) {
+//        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
+//    }
     // Finally, free this packet since it's been re-transmitted
     free(packet);
+
+    cout << "RECV_LS: FROM source: " << sourceRouterID << endl;
+    printLSTable();
 }
 
 
@@ -352,14 +365,12 @@ void RoutingProtocolImpl::init_pingpong() {
         *(uint16_t *) (ping_packet + 2) = htons(12);
         *(uint16_t *) (ping_packet + 4) = htons(this->router_id);
         *(unsigned int *) (ping_packet + 8) = htonl(sys->time());
-//        cout << "PING: send_Time: " << sys->time() <<endl;
         sys->send(i, ping_packet, PINGPONG_PACKET_SIZE);
     }
 }
 
 
 void RoutingProtocolImpl::send_dv_packet() {
-    cout << "I am sending dv packet id: " << router_id << " " << endl;
     vector<uint16_t> dest_to_send;
     uint16_t vec_size = 0;
     for (auto dv_pair: DV_table) {
@@ -402,7 +413,6 @@ void RoutingProtocolImpl::handle_port_expire() {
     // Iterate through ports, disconnect some ports, remove entries in DVtable and DirectNeighbor Table
     // remove all entries in DVtable whose next_hop is ports.to
     // remove all entries in directNeighborTable connected to that expire port
-//    cout << "check whether the port is expired?" << endl;
 
     vector<uint16_t> remove_list;
 
@@ -537,7 +547,7 @@ void RoutingProtocolImpl::update_forward(uint16_t dest_id, uint16_t next_hop) {
 }
 
 //
-void RoutingProtocolImpl::flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet) {
+void RoutingProtocolImpl::flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet, int in_packet_size) {
 
     if (isSendMyLSP) {  // Sending my LSP
         // Update
@@ -548,34 +558,35 @@ void RoutingProtocolImpl::flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num
             if (port_graph[i].isConnected && port_graph[i].direct_neighbor_id != NO_NEIGHBOR_FLAG) {
                 char *packet = (char *) malloc(packet_size);
                 *(ePacketType *) packet = LS;
-                *(uint16_t *) (packet + 2) = packet_size;
-                *(uint16_t *) (packet + 4) = router_id;
-                *(uint32_t *) (packet + 8) = seq_num;
+                *(uint16_t *) (packet + 2) = htons((uint16_t)packet_size);
+                *(uint16_t *) (packet + 4) = htons((uint16_t)router_id);
+                *(uint32_t *) (packet + 8) = htonl((uint32_t)seq_num);
                 int curr_pos = LS_PAYLOAD_POS;
                 for (auto &pair: direct_neighbor_map) {
                     uint16_t dest_id = pair.first;
                     uint16_t cost = pair.second.cost;
                     *(uint16_t *) (packet + curr_pos) = htons(dest_id);
-                    *(uint16_t *) (packet + curr_pos + 2) = htons(cost);
+                    *(uint16_t *) (packet + curr_pos + 2) = htons((uint16_t)cost);
                     curr_pos += 4;
                 }
                 sys->send(i, packet, packet_size);
             }
         }
+        //DEBUG
+//        cout <<"WITH FLOODING" <<endl;
+//        printNeighborTable();
+//        cout << endl;
     } else {    // Re-transmit LSP
-        uint16_t packet_size;
+//        uint16_t packet_size;
         for (int i = 0; i < num_ports; i++) {
-            packet_size = sizeof(input_packet);
             if (i == in_port_num) continue; // Not flood to the port received packet
             if (port_graph[i].isConnected && port_graph[i].direct_neighbor_id != NO_NEIGHBOR_FLAG) {
-                char * new_packet = (char *) malloc(packet_size);
-                memcpy(new_packet, input_packet, packet_size);
-                sys->send(i, new_packet, packet_size);
+                char * new_packet = (char *) malloc(in_packet_size + 1);
+                memcpy(new_packet, input_packet, in_packet_size);
+                sys->send(i, new_packet, in_packet_size);
             }
         }
     }
-
-
 }
 
 
@@ -604,10 +615,42 @@ void RoutingProtocolImpl::insert_LS(int16_t dest_id, unsigned int cost) {
     }
 }
 
-void RoutingProtocolImpl::update_LS(int16_t dest_id, unsigned int cost) {
+void RoutingProtocolImpl::insert_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost) {
+    // We know that dest_id not in this table
+    if (LS_table.count(source_id)) {    // router id in LS_table
+        auto &target_map = LS_table[source_id];
+        struct LSEntry curr_entry1 = {cost, sys->time()};
+        target_map[dest_id] = curr_entry1;
+
+        unordered_map<uint16_t, LSEntry> sub_map;
+        struct LSEntry curr_entry2 = {cost, sys->time()};
+        sub_map[source_id] = curr_entry2;
+        LS_table[dest_id] = sub_map;
+
+    } else {    // router id not in LS_table
+        unordered_map<uint16_t, LSEntry> sub_map1;
+        struct LSEntry curr_entry1 = {cost, sys->time()};
+        sub_map1[dest_id] = curr_entry1;
+        LS_table[source_id] = sub_map1;
+
+        unordered_map<uint16_t, LSEntry> sub_map2;
+        struct LSEntry curr_entry2 = {cost, sys->time()};
+        sub_map2[source_id] = curr_entry2;
+        LS_table[dest_id] = sub_map2;
+    }
+}
+
+
+void RoutingProtocolImpl::update_LS(uint16_t dest_id, unsigned int cost) {
     struct LSEntry curr_entry = {cost, sys->time()};
     LS_table[router_id][dest_id] = curr_entry;
     LS_table[dest_id][router_id] = curr_entry;
+}
+
+void RoutingProtocolImpl::update_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost) {
+    struct LSEntry curr_entry = {cost, sys->time()};
+    LS_table[source_id][dest_id] = curr_entry;
+    LS_table[dest_id][source_id] = curr_entry;
 }
 
 
@@ -660,7 +703,7 @@ void RoutingProtocolImpl::handle_ls_expire() {
     }
 
 //    Dijkstra()
-    flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
+    flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, -1);
 }
 
 void RoutingProtocolImpl::remove_LS(uint16_t node1_id, uint16_t node2_id) {
@@ -694,5 +737,25 @@ bool RoutingProtocolImpl::check_link_in_LSTable(uint16_t node1_id, uint16_t node
             check2 = true;
         }
     }
-    return check1 || check2;    // OR &&?
+    return check1 && check2;    // OR &&?
 }
+
+void RoutingProtocolImpl::printLSTable() {
+    cout << endl;
+    cout << "*********************************" << endl;
+    cout << "This is LS table" << endl;
+    cout << "Router ID: " << router_id << endl;
+    cout << "*********************************" << endl;
+    for (auto &first_pair: LS_table) {
+        uint16_t node1 = first_pair.first;
+        auto &sub_map = first_pair.second;
+        for (auto &second_pair: sub_map) {
+            uint16_t node2 = second_pair.first;
+            auto &entry = second_pair.second;
+            cout << node1 << "->" << node2 << ": cost: "<< entry.cost << " time: " << entry.last_update_time << endl;
+        }
+    }
+    cout << "*********************************" << endl;
+    cout << endl;
+}
+

@@ -103,7 +103,7 @@ private:
     void insert_forward(uint16_t dest_id, uint16_t next_hop);
 
     // LS part:
-    void flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet);
+    void flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet, int in_packet_size);
 
     void Dijkstra_update();
 
@@ -115,9 +115,15 @@ private:
 
     void insert_LS(int16_t dest_id, unsigned int cost);
 
-    void update_LS(int16_t dest_id, unsigned int cost);
+    void insert_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost);
+
+    void update_LS(uint16_t dest_id, unsigned int cost);
+
+    void update_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost);
 
     void update_seq_num();
+
+    void printLSTable();
 
 
 };
