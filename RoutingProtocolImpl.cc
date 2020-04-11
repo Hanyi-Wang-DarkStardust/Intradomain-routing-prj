@@ -42,18 +42,18 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
         init_pingpong();
         sys->set_alarm(this, 10 * SECOND, data);
     } else if (alarm_type == EXPIRE_ALARM) {
-//        if (packet_type == P_DV) {
-//            handle_dv_expire();
-//        } else if (packet_type == P_LS) {
+        if (packet_type == P_DV) {
+            handle_dv_expire();
+        } else if (packet_type == P_LS) {
 //            handle_ls_expire();
-//        }
-//        sys->set_alarm(this, 1 * SECOND, data);
+        }
+        sys->set_alarm(this, 1 * SECOND, data);
     } else if (alarm_type == DV_UPDATE_ALARM) {
         send_dv_packet();
         sys->set_alarm(this, 30 * SECOND, data);
     } else if (alarm_type == LS_UPDATE_ALARM) {
-//        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, -1);
-//        sys->set_alarm(this, 30 * SECOND, data);
+        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, -1);
+        sys->set_alarm(this, 30 * SECOND, data);
     } else {
         cout << "Alarm type not acceptable. " << endl;
         exit(1);
@@ -617,27 +617,32 @@ void RoutingProtocolImpl::insert_LS(int16_t dest_id, unsigned int cost) {
 
 void RoutingProtocolImpl::insert_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost) {
     // We know that dest_id not in this table
-    if (LS_table.count(source_id)) {    // router id in LS_table
-        auto &target_map = LS_table[source_id];
+//    if (LS_table.count(source_id)) {    // router id in LS_table
+        auto &target_map1 = LS_table[source_id];
         struct LSEntry curr_entry1 = {cost, sys->time()};
-        target_map[dest_id] = curr_entry1;
+        target_map1[dest_id] = curr_entry1;
 
-        unordered_map<uint16_t, LSEntry> sub_map;
+//        if (LS_table.count(dest_id)) {
+//            auto &target_map2 = LS_table[dest_id];
+//            struct LSEntry curr_entry2 = {cost, sys->time()};
+//            target_map2[source_id] = curr_entry2;
+//        }
+
+        auto &target_map2 = LS_table[dest_id];
         struct LSEntry curr_entry2 = {cost, sys->time()};
-        sub_map[source_id] = curr_entry2;
-        LS_table[dest_id] = sub_map;
+        target_map2[source_id] = curr_entry2;
 
-    } else {    // router id not in LS_table
-        unordered_map<uint16_t, LSEntry> sub_map1;
-        struct LSEntry curr_entry1 = {cost, sys->time()};
-        sub_map1[dest_id] = curr_entry1;
-        LS_table[source_id] = sub_map1;
-
-        unordered_map<uint16_t, LSEntry> sub_map2;
-        struct LSEntry curr_entry2 = {cost, sys->time()};
-        sub_map2[source_id] = curr_entry2;
-        LS_table[dest_id] = sub_map2;
-    }
+//    } else {    // router id not in LS_table
+//        unordered_map<uint16_t, LSEntry> sub_map1;
+//        struct LSEntry curr_entry1 = {cost, sys->time()};
+//        sub_map1[dest_id] = curr_entry1;
+//        LS_table[source_id] = sub_map1;
+//
+//        unordered_map<uint16_t, LSEntry> sub_map2;
+//        struct LSEntry curr_entry2 = {cost, sys->time()};
+//        sub_map2[source_id] = curr_entry2;
+//        LS_table[dest_id] = sub_map2;
+//    }
 }
 
 

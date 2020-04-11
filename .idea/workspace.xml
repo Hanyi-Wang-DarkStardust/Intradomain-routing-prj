@@ -12,15 +12,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1ad9f66a-cca2-49dd-9ef5-886f0aadd47d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AlarmHandler.h" beforeDir="false" afterPath="$PROJECT_DIR$/AlarmHandler.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/RoutingProtocolImpl.cc" beforeDir="false" afterPath="$PROJECT_DIR$/RoutingProtocolImpl.cc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/RoutingProtocolImpl.h" beforeDir="false" afterPath="$PROJECT_DIR$/RoutingProtocolImpl.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Simulator" beforeDir="false" afterPath="$PROJECT_DIR$/Simulator" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/project3.dir/CXX.includecache" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/project3.dir/CXX.includecache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmake-build-debug/project3" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/project3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simpletest1" beforeDir="false" afterPath="$PROJECT_DIR$/simpletest1" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simpletest2" beforeDir="false" afterPath="$PROJECT_DIR$/simpletest2" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -88,7 +80,7 @@
       <workItem from="1586223369093" duration="12153000" />
       <workItem from="1586314897666" duration="4509000" />
       <workItem from="1586398174626" duration="11321000" />
-      <workItem from="1586481615042" duration="32792000" />
+      <workItem from="1586481615042" duration="33248000" />
     </task>
     <servers />
   </component>
