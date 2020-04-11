@@ -23,6 +23,7 @@ enum eAlarmType {
     EXPIRE_ALARM
 };
 
+
 struct PortEntry {
     uint16_t direct_neighbor_id;
     unsigned int cost;
