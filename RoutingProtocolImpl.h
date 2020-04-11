@@ -55,6 +55,7 @@ private:
     unsigned short num_ports;
     unsigned short router_id;
     eProtocolType packet_type;
+    void * EMPTY_PACKET;    // Used for flooding
 
     vector<PortEntry> port_graph;
     unordered_map<uint16_t, DirectNeighborEntry> direct_neighbor_map;   // other router id --- DirectNeighbor   PHYSICAL
@@ -104,7 +105,13 @@ private:
     // LS part:
     void flood_ls_packet(bool isSendMyLSP, uint16_t in_port_num, void * input_packet);
 
-//    void handle_PONG_with_LS();
+    void Dijkstra_update();
+
+    void handle_ls_expire();
+
+    void remove_LS(uint16_t node1_id, uint16_t node2_id);
+
+    bool check_link_in_LSTable(uint16_t node1_id, uint16_t node2_id);
 
     void insert_LS(int16_t dest_id, unsigned int cost);
 

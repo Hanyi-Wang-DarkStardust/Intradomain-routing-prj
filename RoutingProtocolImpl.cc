@@ -4,11 +4,13 @@ RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
     sys = n;
     // add your own code
     alarmHandler = new AlarmHandler();
+    EMPTY_PACKET = malloc(sizeof(char));
 }
 
 RoutingProtocolImpl::~RoutingProtocolImpl() {
     // add your own code (if needed)
     delete alarmHandler;
+    free(EMPTY_PACKET);
 }
 
 void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type) {
@@ -40,14 +42,18 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
         init_pingpong();
         sys->set_alarm(this, 10 * SECOND, data);
     } else if (alarm_type == EXPIRE_ALARM) {
-        handle_dv_expire();
+        if (packet_type == P_DV) {
+            handle_dv_expire();
+        } else if (packet_type == P_LS) {
+            handle_ls_expire();
+        }
         sys->set_alarm(this, 1 * SECOND, data);
     } else if (alarm_type == DV_UPDATE_ALARM) {
         send_dv_packet();
         sys->set_alarm(this, 30 * SECOND, data);
     } else if (alarm_type == LS_UPDATE_ALARM) {
-
-//        sys->set_alarm(this, 30 * SECOND, data);
+        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
+        sys->set_alarm(this, 30 * SECOND, data);
     } else {
         cout << "Alarm type not acceptable. " << endl;
         exit(1);
@@ -157,11 +163,11 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                 insert_LS(sourceRouterID, rtt);
                 insert_forward(sourceRouterID, sourceRouterID);
                 // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, packet);
+                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
             } else {
                 update_LS(sourceRouterID, rtt);
                 // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, packet);
+                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
             }
         } else {    // In DirectNeighbor
             DirectNeighborEntry *dn = &direct_neighbor_map[sourceRouterID];
@@ -172,7 +178,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             if (diff != 0) {
                 update_LS(sourceRouterID, cur_cost);
                 // Dijkstra()
-                flood_ls_packet(true, FLOOD_ALL_FLAG, packet);
+                flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
             }
         }
     }
@@ -326,7 +332,7 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     // 3. flood my LS packet, and re-transmit(flood) others' packets
     flood_ls_packet(false, port, recv_packet);  // flooding re-transmit
     if (hasChange) {
-        flood_ls_packet(true, FLOOD_ALL_FLAG, packet);
+        flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
     }
     // Finally, free this packet since it's been re-transmitted
     free(packet);
@@ -403,11 +409,12 @@ void RoutingProtocolImpl::handle_port_expire() {
     for (int i = 0; i < num_ports; i++) {
         PortEntry &port = port_graph[i];
         unsigned int time_lag = sys->time() - port.last_update_time;
-        if (time_lag > 15 * SECOND) {
+        if (time_lag > 15 * SECOND && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
             cout << "route_id: " << router_id << "port: " << i << " expires ";
             port.isConnected = false;
             port.cost = INFINITY_COST;
             uint16_t connected_router = port.direct_neighbor_id;
+            port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
 
             // remove direct neighbor entries connected with this port
             if (direct_neighbor_map.count(connected_router) > 0) {
@@ -608,3 +615,84 @@ void RoutingProtocolImpl::update_seq_num() {
     this->seq_num += 1;
 }
 
+void RoutingProtocolImpl::handle_ls_expire() {
+    for (int i = 0; i < num_ports; i++) {
+        PortEntry &port = port_graph[i];
+        unsigned int time_lag = sys->time() - port.last_update_time;
+        if (time_lag > 15 * SECOND && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
+            cout << "route_id: " << router_id << "port: " << i << " expires ";
+            port.isConnected = false;
+            port.cost = INFINITY_COST;
+            uint16_t connected_router = port.direct_neighbor_id;
+            port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
+
+            // remove direct neighbor entries connected with this port
+            if (direct_neighbor_map.count(connected_router) > 0) {
+                direct_neighbor_map.erase(connected_router);
+            }
+            // remove entries in Fwd table
+            if (forward_table.count(connected_router) > 0) {
+                forward_table.erase(connected_router);
+            }
+            // remove link in LS table
+            remove_LS(router_id, connected_router);
+        }
+    }
+
+    vector<pair<uint16_t, uint16_t>> delete_list;
+    for (auto &super_entry: LS_table) {
+        uint16_t node1_id = super_entry.first;
+        auto &sub_map = super_entry.second;
+        for (auto &sub_entry: sub_map) {
+            uint16_t node2_id = sub_entry.first;
+            LSEntry &ls_entry = sub_entry.second;
+            if (sys->time() - ls_entry.last_update_time > 45 *SECOND) {
+                delete_list.emplace_back(node1_id, node2_id);   // push_back(make_pair(node1_id, node2_id));
+            }
+        }
+    }
+
+    // check and delete link, beware of duplicates: eg. <a,b> and <b,a>
+    for (pair<uint16_t, uint16_t> d_pair: delete_list) {
+        if (check_link_in_LSTable(d_pair.first, d_pair.second)) {   // TODO DO WE NEED THIS CHECK???
+            remove_LS(d_pair.first, d_pair.second);
+        }
+    }
+
+//    Dijkstra()
+    flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET);
+}
+
+void RoutingProtocolImpl::remove_LS(uint16_t node1_id, uint16_t node2_id) {
+    if (LS_table.count(node2_id) > 0) {
+        auto &target_sub_map = LS_table[node2_id];
+        if (target_sub_map.count(node1_id) > 0) {
+            target_sub_map.erase(node1_id);
+        }
+    }
+    if (LS_table.count(node1_id) > 0) {
+        auto &target_sub_map = LS_table[node1_id];
+        if (target_sub_map.count(node2_id) > 0) {
+            target_sub_map.erase(node2_id);
+        }
+    }
+}
+
+bool RoutingProtocolImpl::check_link_in_LSTable(uint16_t node1_id, uint16_t node2_id) { // TODO DO WE NEED THIS??
+    bool check1 = false;
+    bool check2 = false;
+    if (LS_table.count(node2_id)) {
+        auto &sub_map = LS_table[node2_id];
+        if (sub_map.count(node1_id)) {
+            check1 = true;
+        }
+    }
+
+    if (LS_table.count(node1_id)) {
+        auto &sub_map = LS_table[node1_id];
+        if (sub_map.count(node2_id)) {
+            check2 = true;
+        }
+    }
+    return check1 || check2;    // OR &&?
+}
