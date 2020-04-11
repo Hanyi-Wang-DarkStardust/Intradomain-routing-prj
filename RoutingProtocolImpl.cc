@@ -27,11 +27,10 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
         port.cost = INFINITY_COST;
         port.direct_neighbor_id = NO_NEIGHBOR_FLAG;
         port.last_update_time = 0;
-//        port.isConnected = false;
         port_graph.push_back(port);
     }
     init_pingpong();
-    alarmHandler->init_alarm(sys, this, protocol_type);
+    alarmHandler->init_alarm(sys, this, packet_type);
 }
 
 void RoutingProtocolImpl::handle_alarm(void *data) {
@@ -45,7 +44,7 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
         if (packet_type == P_DV) {
             handle_dv_expire();
         } else if (packet_type == P_LS) {
-//            handle_ls_expire();
+            handle_ls_expire();
         }
         sys->set_alarm(this, 1 * SECOND, data);
     } else if (alarm_type == DV_UPDATE_ALARM) {
@@ -63,7 +62,7 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
 void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size) {
     // add your own code
     char *recv_packet = (char *) packet;
-    char recv_pkt_type = *(char *) recv_packet;
+    ePacketType recv_pkt_type = *(ePacketType *) recv_packet;
 
     if (recv_pkt_type == DATA) {
         recv_data(port, packet, size);
@@ -99,14 +98,10 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
     unsigned int get_time = ntohl(*(unsigned int *) (recv_packet + 8));
     uint16_t rtt = current_time - get_time;
     uint16_t sourceRouterID = ntohs(*(uint16_t *) (recv_packet + 4));
-//    bool isConnected = port_graph[port].direct_neighbor_id != NO_NEIGHBOR_FLAG;
-//    bool isConnected = port_graph[port].isConnected;
-//    port_graph[port].isConnected = true;
     port_graph[port].direct_neighbor_id = sourceRouterID;
     port_graph[port].last_update_time = current_time;
     port_graph[port].cost = rtt;    // update cost
     bool sourceRouterInMap = direct_neighbor_map.count(sourceRouterID) != 0;
-//    bool table_changed = false;
 
     if (packet_type == P_DV) {
         if (!sourceRouterInMap) {
@@ -155,26 +150,19 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
         }
         send_dv_packet();
     } else if (packet_type == P_LS) {
-
-        cout << endl;
-        cout << "BEFORE: RECV_PONG: FROM source: " << sourceRouterID << endl;
-        printLSTable();
-
         if (!sourceRouterInMap) {   // Not in DirectNeighborMap
-            cout <<"SOURCE " << sourceRouterID << " NOT IN MAP" <<endl;
             insert_neighbor(sourceRouterID, rtt, port);
             if (check_link_in_LSTable(router_id, sourceRouterID) == false) {
-                cout << "haha" <<endl;
                 insert_LS(router_id, sourceRouterID, rtt);
                 insert_forward(sourceRouterID, sourceRouterID);
                 // Dijkstra()
                 flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
         } else {    // In DirectNeighbor
-            DirectNeighborEntry *dn = &direct_neighbor_map[sourceRouterID];
-            int prev_cost = dn->cost;
+            DirectNeighborEntry &dn = direct_neighbor_map[sourceRouterID];
+            int prev_cost = dn.cost;
             update_neighbor(sourceRouterID, rtt, port);
-            int cur_cost = dn->cost;
+            int cur_cost = dn.cost;
             int diff = cur_cost - prev_cost;
             if (diff != 0) {
                 update_LS(router_id, sourceRouterID, cur_cost);
@@ -182,9 +170,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                 flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
         }
-        cout << endl;
-        cout << "AFTER: RECV_PONG: FROM source: " << sourceRouterID << endl;
-        printLSTable();
+//        printLSTable();
     }
 }
 
@@ -347,7 +333,6 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     // Finally, free this packet since it's been re-transmitted
     free(packet);
 
-    cout << "RECV_LS: FROM source: " << sourceRouterID << endl;
     printLSTable();
 }
 
@@ -483,7 +468,7 @@ void RoutingProtocolImpl::printDVTable() {
     cout << "*********************************" << endl;
     cout << "DestID\tcost\tnextHop\tupdateTime" << endl;
     cout << "*********************************" << endl;
-    for (auto &entry: DV_table) {
+    for (auto entry: DV_table) {
         cout << entry.first << "\t" << entry.second.cost << "\t" << entry.second.next_hop << "\t"
              << entry.second.last_update_time << endl;
     }
@@ -498,7 +483,7 @@ void RoutingProtocolImpl::printNeighborTable() {
     cout << "*********************************" << endl;
     cout << "DestID\tcost" << endl;
     cout << "*********************************" << endl;
-    for (auto &entry: direct_neighbor_map) {
+    for (auto entry: direct_neighbor_map) {
         cout << entry.first << "\t" << entry.second.cost << endl;
     }
     cout << "*********************************" << endl;
@@ -510,7 +495,6 @@ void RoutingProtocolImpl::insert_neighbor(uint16_t neighbor_id, unsigned int cos
     dn.cost = cost;
     dn.port_num = port_num;
     direct_neighbor_map[neighbor_id] = dn;
-
 }
 
 void RoutingProtocolImpl::insert_DV(int16_t dest_id, unsigned int cost, uint16_t next_hop) {
@@ -528,10 +512,10 @@ void RoutingProtocolImpl::insert_forward(uint16_t dest_id, uint16_t next_hop) {
 }
 
 void RoutingProtocolImpl::update_neighbor(uint16_t neighbor_id, unsigned int cost, uint16_t port_num) {
-    DirectNeighborEntry *dn = &direct_neighbor_map[neighbor_id];
-    dn->port_num = port_num;
+    DirectNeighborEntry &dn = direct_neighbor_map[neighbor_id];
+    dn.port_num = port_num;
 //    unsigned int prev_cost = dn->cost;
-    dn->cost = cost;
+    dn.cost = cost;
 }
 
 void RoutingProtocolImpl::update_DV(int16_t dest_id, unsigned int cost, uint16_t next_hop) {
@@ -751,12 +735,12 @@ void RoutingProtocolImpl::printLSTable() {
     cout << "This is LS table" << endl;
     cout << "Router ID: " << router_id << endl;
     cout << "*********************************" << endl;
-    for (auto &first_pair: LS_table) {
+    for (auto first_pair: LS_table) {
         uint16_t node1 = first_pair.first;
-        auto &sub_map = first_pair.second;
+        auto sub_map = first_pair.second;
         for (auto &second_pair: sub_map) {
             uint16_t node2 = second_pair.first;
-            auto &entry = second_pair.second;
+            auto entry = second_pair.second;
             cout << node1 << "->" << node2 << ": cost: "<< entry.cost << " time: " << entry.last_update_time << endl;
         }
     }
