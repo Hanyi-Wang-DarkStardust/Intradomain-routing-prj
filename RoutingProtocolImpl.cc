@@ -161,7 +161,7 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
                 insert_LS(router_id, sourceRouterID, rtt);
                 insert_forward(sourceRouterID, sourceRouterID);
 
-                printLSTable();
+//                printLSTable();
                 Dijkstra_update();
                 flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
@@ -174,15 +174,11 @@ void RoutingProtocolImpl::recv_pong_packet(unsigned short port, void *packet, un
             if (diff != 0) {
                 update_LS(router_id, sourceRouterID, cur_cost);
 
-                printLSTable();
+//                printLSTable();
                 Dijkstra_update();
                 flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
             }
         }
-//        cout << "RECV PONG AFTER UPDATE, recv from " << sourceRouterID <<endl;
-//        printNeighborTable();
-//        cout << endl;
-//        printLSTable();
     }
 }
 
@@ -315,13 +311,16 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
         recv_ls_list.push_back(curr_node_cost_pair);
     }
     // 2. Update LS table
-    bool source_router_is_in_neighbor = direct_neighbor_map.count(sourceRouterID) > 0;
 
     for (auto &pair: recv_ls_list) {
         uint16_t dest_id = pair.first;
         uint16_t cost = pair.second;
         // See if it's in NeighborMap
-
+        bool source_router_not_in_neighbor = direct_neighbor_map.count(sourceRouterID) == 0;
+        // Deal with situation where: the sourceRouterID is not in Neighbor!
+        if (source_router_not_in_neighbor && dest_id == router_id) {
+            insert_neighbor(sourceRouterID,cost,port);
+        }
 
         if (!check_link_in_LSTable(sourceRouterID, dest_id)) { // received entry not in my LS table, add it!
             hasChange = true;
@@ -332,7 +331,7 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
             if (cost != old_cost) {
                 hasChange = true;
                 update_LS(sourceRouterID, dest_id, cost);
-                Dijkstra_update();
+//                Dijkstra_update();
             }
 //            else update_LS(sourceRouterID, dest_id, cost);    // TODO: Do we need to update time when there's no change? If no, delete this line
         }
@@ -341,6 +340,7 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     // 3. flood my LS packet, and re-transmit(flood) others' packets
     flood_ls_packet(false, port, recv_packet, size);  // flooding re-transmit
     if (hasChange) {
+        Dijkstra_update();
         flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
     }
     // Finally, free this packet since it's been re-transmitted
@@ -632,6 +632,11 @@ void RoutingProtocolImpl::handle_ls_expire() {
             }
             // remove link in LS table
             remove_LS(router_id, connected_router);
+            cout << "BEFORE REMOVE, LS IS " <<endl;
+            printLSTable();
+            Dijkstra_update();
+            printLSTable();
+            cout << "AFTER REMOVE, LS IS " <<endl;
         }
     }
 
