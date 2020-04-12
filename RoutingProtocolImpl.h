@@ -5,6 +5,8 @@
 #include "utils.h"
 #include "Node.h"
 #include "AlarmHandler.h"
+#include <queue>
+
 
 
 class RoutingProtocolImpl : public RoutingProtocol {
@@ -60,7 +62,6 @@ private:
 
     // LS Part
     uint32_t seq_num;
-//    unordered_map<uint16_t, unordered_map<uint16_t, uint16_t>> LS_table;
     unordered_map<uint16_t, unordered_map<uint16_t, LSEntry>> LS_table;
     set<pair<uint16_t, uint32_t>> haveSeenSet;
 
@@ -109,11 +110,7 @@ private:
 
     bool check_link_in_LSTable(uint16_t node1_id, uint16_t node2_id);
 
-    void insert_LS(int16_t dest_id, unsigned int cost);
-
     void insert_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost);
-
-    void update_LS(uint16_t dest_id, unsigned int cost);
 
     void update_LS(uint16_t source_id, uint16_t dest_id, unsigned int cost);
 
