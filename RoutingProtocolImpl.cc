@@ -316,6 +316,23 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
     flood_ls_packet(false, port, recv_packet, size);  // flooding re-transmit
     free(packet);
 
+    // special case handling
+    if (LS_table.count(sourceRouterID) > 0) {
+        auto tmp_map = LS_table[sourceRouterID];
+        for (auto &pair: tmp_map) {
+            uint16_t target_node = pair.first;
+            bool isIn = false;
+            for (auto &pair1: recv_ls_list) {
+                uint16_t dest_id = pair1.first;
+                if (target_node == dest_id) isIn = true;
+            }
+            if (!isIn) {
+                remove_LS(sourceRouterID, target_node);
+                hasChange = true;
+            }
+        }
+    }
+
     // 2. Update LS table
     for (auto &pair: recv_ls_list) {
         uint16_t dest_id = pair.first;
@@ -337,27 +354,26 @@ void RoutingProtocolImpl::recv_ls_packet(unsigned short port, void *packet, unsi
                 hasChange = true;
                 update_LS(sourceRouterID, dest_id, cost);
             }
-//            else update_LS(sourceRouterID, dest_id, cost);    // TODO: Do we need to update time when there's no change? If no, delete this line
         }
     }
 
+
+
     // 3. flood my LS packet, and re-transmit(flood) others' packets
     if (hasChange) {
-
         Dijkstra_update();
         flood_ls_packet(true, FLOOD_ALL_FLAG, EMPTY_PACKET, size);
     }
 //    printNeighborTable();
-//    printLSTable();
+    printLSTable();
 //    printFwdTable();
-
 }
 
 
 
 //************************************************************************************************//
 //************************************************************************************************//
-// ALARM HANDLING AREA
+//  ALARM HANDLING
 //************************************************************************************************//
 //************************************************************************************************//
 
@@ -373,7 +389,6 @@ bool RoutingProtocolImpl::handle_port_expire() {
             PortEntry &port = port_graph[i];
             unsigned int time_lag = sys->time() - port.last_update_time;
             if (time_lag > 15 * SECOND && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
-//                cout << "route_id: " << router_id << "port: " << i << " expires ";
                 hasChange = true;
 
                 port.cost = INFINITY_COST;
@@ -413,7 +428,6 @@ bool RoutingProtocolImpl::handle_port_expire() {
             PortEntry &port = port_graph[i];
             unsigned int time_lag = sys->time() - port.last_update_time;
             if (time_lag > 15 * SECOND && port.direct_neighbor_id != NO_NEIGHBOR_FLAG) {
-//                cout << "route_id: " << router_id << "port: " << i << " expires ";
                 hasChange = true;
                 port.cost = INFINITY_COST;
                 uint16_t connected_router = port.direct_neighbor_id;
@@ -831,5 +845,3 @@ void RoutingProtocolImpl::printFwdTable() {
     }
     cout << "==================================" << endl;
 }
-
-
