@@ -152,6 +152,8 @@ private:
     void printDVTable();
 
     void printNeighborTable();
+
+    void printFwdTable();
     // ====================================================================================
 };
 
