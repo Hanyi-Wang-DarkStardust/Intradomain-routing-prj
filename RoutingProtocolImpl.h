@@ -1,11 +1,23 @@
 #ifndef ROUTINGPROTOCOLIMPL_H
 #define ROUTINGPROTOCOLIMPL_H
 
+#include <iostream>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/time.h>
+#include <fcntl.h>
+#include <vector>
 #include "RoutingProtocol.h"
 #include "utils.h"
 #include "Node.h"
 #include "AlarmHandler.h"
 #include <queue>
+#include <cstring>
 
 
 
@@ -39,7 +51,7 @@ public:
     // DATA packet is created at a router by the simulator, your
     // recv() function will be called for such DATA packet, but with a
     // special port number of SPECIAL_PORT (see global.h) to indicate
-    // that the packet is generated locally and not received from 
+    // that the packet is generated locally and not received from
     // a neighbor router.
 
 

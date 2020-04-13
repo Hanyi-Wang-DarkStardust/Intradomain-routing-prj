@@ -12,12 +12,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1ad9f66a-cca2-49dd-9ef5-886f0aadd47d" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/test.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/simpletest6" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/RoutingProtocolImpl.cc" beforeDir="false" afterPath="$PROJECT_DIR$/RoutingProtocolImpl.cc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/RoutingProtocolImpl.h" beforeDir="false" afterPath="$PROJECT_DIR$/RoutingProtocolImpl.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Simulator" beforeDir="false" afterPath="$PROJECT_DIR$/Simulator" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simpletest2" beforeDir="false" afterPath="$PROJECT_DIR$/simpletest2" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/Makefile.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/Makefile.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/clion-log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/clion-log.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/project3.dir/CXX.includecache" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-debug/CMakeFiles/project3.dir/CXX.includecache" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/global.h" beforeDir="false" afterPath="$PROJECT_DIR$/global.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simpletest2-1" beforeDir="false" afterPath="$PROJECT_DIR$/simpletest2-1" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simpletest2-2" beforeDir="false" afterPath="$PROJECT_DIR$/simpletest2-2" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.txt" beforeDir="false" afterPath="$PROJECT_DIR$/test.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,6 +96,11 @@
       <workItem from="1586314897666" duration="4509000" />
       <workItem from="1586398174626" duration="11321000" />
       <workItem from="1586481615042" duration="68282000" />
+      <workItem from="1586711156203" duration="633000" />
+      <workItem from="1586723102483" duration="7394000" />
+      <workItem from="1586745694453" duration="17000" />
+      <workItem from="1586745722030" duration="4801000" />
+      <workItem from="1586755925830" duration="326000" />
     </task>
     <servers />
   </component>

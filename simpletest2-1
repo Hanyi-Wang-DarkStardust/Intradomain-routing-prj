@@ -12,9 +12,9 @@
 
 [events]
 
-80.01 xmit (3,1)
-102.00 changedelay (2,3) 0.100
-108.01 xmit (3,1)
-118.01 xmit (3,1)
-128.01 xmit (3,1)
+20.00 xmit (1,4)
+102.00 linkdying (2,3)
+147.01 xmit (1,4)
+150.00 linkcomingup (2,3)
+170.01 xmit (1,4)
 200.00 end
