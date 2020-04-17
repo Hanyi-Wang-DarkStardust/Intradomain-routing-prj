@@ -17,11 +17,11 @@ RoutingProtocolImpl::~RoutingProtocolImpl() {
 
 void RoutingProtocolImpl::init(unsigned short in_num_ports, unsigned short in_router_id, eProtocolType protocol_type) {
     // add your own code
+    this->seq_num = 0;
+
     this->num_ports = in_num_ports;
     this->router_id = in_router_id;
     this->packet_type = protocol_type;
-
-    this->seq_num = 0;
     init_ports();
     init_pingpong();
     alarmHandler->init_alarm(sys, this, protocol_type);
